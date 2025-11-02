@@ -6,6 +6,7 @@ LDFLAGS := $(shell pkg-config --libs opencv4)
 
 requirements:
 	sudo apt install libopencv-dev
+	sudo apt install libpcl-dev
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)

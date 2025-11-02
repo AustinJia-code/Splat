@@ -16,6 +16,7 @@
 #include <opencv2/calib3d.hpp>
 #include <iostream>
 #include <cassert>
+#include <fstream>
 
 class OV9715
 {
@@ -110,6 +111,7 @@ public:
     void disparity (const std::string& id = "", 
                     const std::string& path = "../data/out-3-disparity/")
     {
+        assert (!this->left_rect.empty () && !this->right_rect.empty ());
         // Convert to grayscale
         cv::Mat left_gray, right_gray;
         cv::cvtColor (this->left_rect, left_gray, cv::COLOR_BGR2GRAY);
@@ -141,10 +143,14 @@ public:
         }
     }
 
+    /**
+     * Disparity -> depth
+     */
     void depth (const std::string& id = "", 
                 const std::string& path = "../data/out-4-depth/",
                 const std::array<int, 2>& clip_range_mm = {0, 5000})
     {
+        assert (!this->disparity_map.empty ());
         cv::Mat disparity_float;
         this->disparity_map.convertTo (disparity_float, CV_32F, 1.0 / 16.0);
         this->depth_map = cv::Mat (disparity_float.size (), CV_32F);
@@ -183,6 +189,51 @@ public:
 
             // Save
             this->save (path, id, depth_color);
+        }
+    }
+
+    /**
+     * Depth -> point cloud
+     */
+    void points (const std::string& id = "", 
+                 const std::string& path = "../data/out-5-points/")
+    {
+        assert(!this->depth_map.empty () && !this->left_rect.empty ());
+
+        // Get camera intrinsics
+        float fx = P1.at<double> (0, 0);
+        float fy = P1.at<double> (1, 1);
+        float cx = P1.at<double> (0, 2);
+        float cy = P1.at<double> (1, 2);
+
+        // Prepare output
+        std::vector<cv::Vec3f> points_3D;
+        std::vector<cv::Vec3b> colors;
+
+        // Convert depth map to 3D points
+        for (int y = 0; y < depth_map.rows; y++)
+            for (int x = 0; x < depth_map.cols; x++)
+            {
+                float depth = depth_map.at<float> (y, x);
+                
+                // Skip invalid depths
+                if (depth <= 0.0f)
+                    continue;
+
+                // Backproject to 3D using pinhole camera model
+                float X = (x - cx) * depth / fx;
+                float Y = (y - cy) * depth / fy;
+                float Z = depth;
+
+                points_3D.push_back (cv::Vec3f (X, Y, Z));
+                colors.push_back (left_rect.at<cv::Vec3b> (y, x));
+            }
+
+        // Write to .ply
+        if (!id.empty ())
+        {
+            std::string filename = path + id + ".ply";
+            this->save_ply (filename, points_3D, colors);
         }
     }
 
@@ -227,6 +278,9 @@ private:
         fs.release ();
     }   
 
+    /**
+     * Image saver helper
+     */
     void save (const std::string& path, const std::string& id,
                const cv::Mat& left, const cv::Mat& right = cv::Mat ())
     {
@@ -247,6 +301,9 @@ private:
                   << "*.jpg" << std::endl;
     }
 
+    /**
+     * Raw cam split helper
+     */
     void split ()
     {
         int rows = this->raw_frame.rows;
@@ -255,6 +312,37 @@ private:
                                     cv::Range (0, cols / 2)).clone ();
         this->right_raw = raw_frame (cv::Range (0, rows),
                                      cv::Range (cols / 2, cols)).clone ();
+    }
+
+    /**
+     * .ply save helper
+     */
+    void save_ply (const std::string& filename, 
+                   const std::vector<cv::Vec3f>& points,
+                   const std::vector<cv::Vec3b>& colors)
+    {
+        std::ofstream ofs (filename);
+
+        // Write header
+        ofs << "ply\nformat ascii 1.0\n";
+        ofs << "element vertex " << points.size () << "\n";
+        ofs << "property float x\nproperty float y\nproperty float z\n";
+        ofs << "property uchar red\nproperty uchar green\nproperty uchar blue\n";
+        ofs << "end_header\n";
+
+        // Write data
+        for (size_t i = 0; i < points.size (); ++i)
+        {
+            const cv::Vec3f& point = points[i];
+            const cv::Vec3b& color = colors[i];
+
+            ofs << point[0] << " " << point[1] << " " << point[2] << " "
+                << (int) color[2] << " " << (int) color[1] << " " << (int) color[0]
+                << "\n";
+        }
+
+        ofs.close ();
+        std::cout << "Saved to " << filename << std::endl;
     }
 };
 
@@ -265,4 +353,5 @@ int main ()
     ov9715.undistort ("0");
     ov9715.disparity ("0");
     ov9715.depth ("0");
+    ov9715.points ("0");
 }

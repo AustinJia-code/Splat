@@ -1,14 +1,12 @@
-'''
-pip install open3d, opencv-python
-'''
-
 import open3d as o3d
 import numpy as np
 import cv2
 import os
 
+STEPS_PER_ROTATION = 120
+
 # Load calibration
-yaml_file = "../src/config/stereo_calib.yml"
+yaml_file = "./src/config/stereo_calib.yml"
 fs = cv2.FileStorage (yaml_file, cv2.FILE_STORAGE_READ)
 
 K1 = fs.getNode ("K1").mat ()
@@ -34,23 +32,42 @@ Points are at positive Z, so we need to transform them to be in front
 
 '''
 extrinsic = np.array ([
-    [1,  0,  0, 0],
-    [0,  1,  0, 0],
-    [0,  0,  1, 0],
-    [0,  0,  0, 1]
-], dtype = np.float64)
+        [1,  0,  0, 0],
+        [0,  1,  0, 0],
+        [0,  0,  1, 0],
+        [0,  0,  0, 1]
+    ], dtype = np.float64)
 
-ply_file = "../data/out-5-points/0.ply"
-if not os.path.exists (ply_file):
-    raise FileNotFoundError (f"{ply_file} not found")
+folder = "./data/out-5-points/"
+pcds = []
+# Add all point clouds
+for ply in os.listdir (folder):
+    file_path = os.path.join (folder, ply)
+    steps = int (ply.split ('.')[0])
 
-pcd = o3d.io.read_point_cloud (ply_file)
-print (f"Loaded {len (pcd.points)} points from {ply_file}")
+    # All about z-axis
+    angle = (steps / STEPS_PER_ROTATION) * 2 * np.pi
+    pcd = o3d.io.read_point_cloud (file_path)
+    rotation_matrix = np.array (
+        [[np.cos (angle), 0, np.sin (angle), 0],
+        [0,               1, 0,              0],
+        [-np.sin (angle), 0, np.cos (angle), 0],
+        [0,               0, 0,              1]])
+    pcd.transform (rotation_matrix)
+    pcds.append (pcd)
+
+    print (f"Loaded {ply}")
+
+merged_pcd = o3d.geometry.PointCloud ()
+for pcd in pcds:
+    merged_pcd += pcd
+merged_pcd = merged_pcd.voxel_down_sample (voxel_size = 5.0)
+print (len (merged_pcd.points))
 
 # View
 vis = o3d.visualization.Visualizer ()
 vis.create_window ("Stereo Camera View", width = width, height = height)
-vis.add_geometry (pcd)
+vis.add_geometry (merged_pcd)
 
 param = o3d.camera.PinholeCameraParameters ()
 param.intrinsic = intrinsic

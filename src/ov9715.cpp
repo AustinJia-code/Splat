@@ -237,6 +237,18 @@ public:
         }
     }
 
+    /**
+     * Full capture -> point cloud pipeline
+     */
+    void process (const std::string& id)
+    {
+        this->capture (id);
+        this->undistort (id);
+        this->disparity (id);
+        this->depth (id);
+        this->points (id);
+    }
+
 private:
     cv::VideoCapture stereo_cam;
 
@@ -345,13 +357,3 @@ private:
         std::cout << "Saved to " << filename << std::endl;
     }
 };
-
-int main ()
-{
-    OV9715 ov9715 ("../src/config/stereo_calib.yml");
-    ov9715.load ("../data/in-sample/stereo_room.jpg", "0");
-    ov9715.undistort ("0");
-    ov9715.disparity ("0");
-    ov9715.depth ("0");
-    ov9715.points ("0");
-}

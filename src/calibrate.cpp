@@ -19,7 +19,7 @@
 int main ()
 {
     std::string out_path = "../src/config/stereo_calib.yml";
-    std::string in_path = "../data/in-checker-35mm/*.jpg";
+    std::string in_path = "../data/calib-checker-35mm/*.jpg";
 
     int checker_cols = 9;            // inner corners per row
     int checker_rows = 7;            // inner corners per column

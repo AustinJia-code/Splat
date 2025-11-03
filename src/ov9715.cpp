@@ -17,6 +17,7 @@
 #include <iostream>
 #include <cassert>
 #include <fstream>
+#include <filesystem>
 
 class OV9715
 {
@@ -25,11 +26,33 @@ public:
      * Constructor with calibration file and port
      */
     OV9715 (const std::string& calib_file = "../src/config/stereo_calib.yml", 
-            int port = -1)
+            int port = -1,
+            const std::string& scene = "default")
     {
-        loadCalibration (calib_file);
+        this->scene = scene;
+        load_calibration (calib_file);
         if (port != -1)
             stereo_cam = cv::VideoCapture (port);
+    }
+
+    /**
+     * Process all images from scene
+     */
+
+    void process_scene ()
+    {
+        std::string scene_path = "../data/in/" + this->scene + "/";
+        for (const auto& entry : std::filesystem::directory_iterator (scene_path))
+        {
+            std::string filename = entry.path ().filename ().string ();
+            std::string id = filename.substr (0, filename.find_last_of ('.'));
+
+            this->load (entry.path ().string (), "0");
+            this->undistort ("0");
+            this->disparity ("0");
+            this->depth ("0");
+            this->points ("0");
+        }
     }
 
     /**
@@ -37,8 +60,11 @@ public:
      */
     void load (const std::string& in_path,
                const std::string& id = "", 
-               const std::string& out_path = "../data/out-1-cam/")
+               std::string out_path = "")
     {
+        if (out_path.empty ())
+            out_path = ("../data/out/" + this->scene + "/1-cam/");
+
         // Capture
         this->raw_frame = cv::imread (in_path);
         this->img_size = cv::Size (raw_frame.cols / 2, raw_frame.rows);
@@ -52,8 +78,11 @@ public:
      * Camera raw combined -> raw split
      */
     void capture (const std::string& id = "", 
-                  const std::string& path = "../data/out-1-cam/")
+                  std::string path = "")
     {
+        if (path.empty ())
+            path = ("../data/out/" + this->scene + "/1-cam/");
+
         // Capture
         this->stereo_cam >> this->raw_frame;
         this->img_size = cv::Size (raw_frame.cols / 2, raw_frame.rows);
@@ -67,9 +96,11 @@ public:
      * Raw split -> undistorted, rectified split
      */
     void undistort (const std::string& id = "", 
-                    const std::string& path = "../data/out-2-undistort/")
+                    std::string path = "")
     {
         assert (!left_raw.empty () && !right_raw.empty ());
+        if (path.empty ())
+            path = ("../data/out/" + this->scene + "/2-undistort/");
 
         // Undistort and rectify
         cv::Mat map1_left, map2_left, map1_right, map2_right;
@@ -109,9 +140,12 @@ public:
      * Rectified split -> depth
      */
     void disparity (const std::string& id = "", 
-                    const std::string& path = "../data/out-3-disparity/")
+                    std::string path = "")
     {
         assert (!this->left_rect.empty () && !this->right_rect.empty ());
+        if (path.empty ())
+            path = ("../data/out/" + this->scene + "/3-disparity/");
+
         // Convert to grayscale
         cv::Mat left_gray, right_gray;
         cv::cvtColor (this->left_rect, left_gray, cv::COLOR_BGR2GRAY);
@@ -147,10 +181,13 @@ public:
      * Disparity -> depth
      */
     void depth (const std::string& id = "", 
-                const std::string& path = "../data/out-4-depth/",
+                std::string path = "",
                 const std::array<int, 2>& clip_range_mm = {0, 5000})
     {
         assert (!this->disparity_map.empty ());
+        if (path.empty ())
+            path = ("../data/out/" + this->scene + "/4-depth/");
+
         cv::Mat disparity_float;
         this->disparity_map.convertTo (disparity_float, CV_32F, 1.0 / 16.0);
         this->depth_map = cv::Mat (disparity_float.size (), CV_32F);
@@ -196,9 +233,11 @@ public:
      * Depth -> point cloud
      */
     void points (const std::string& id = "", 
-                 const std::string& path = "../data/out-5-points/")
+                 std::string path = "")
     {
         assert(!this->depth_map.empty () && !this->left_rect.empty ());
+        if (path.empty ())
+            path = ("../data/out/" + this->scene + "/5-points/");
 
         // Get camera intrinsics
         float fx = P1.at<double> (0, 0);
@@ -232,6 +271,8 @@ public:
         // Write to .ply
         if (!id.empty ())
         {
+            if (!std::filesystem::exists (path))
+                std::filesystem::create_directories (path);
             std::string filename = path + id + ".ply";
             this->save_ply (filename, points_3D, colors);
         }
@@ -251,6 +292,7 @@ public:
 
 private:
     cv::VideoCapture stereo_cam;
+    std::string scene;
 
     // Stereo calibration matrices
     cv::Mat K1, D1, K2, D2;
@@ -267,7 +309,7 @@ private:
     /**
      * Load calibration data from yml
      */
-    void loadCalibration (const std::string& calib_file)
+    void load_calibration (const std::string& calib_file)
     {
         cv::FileStorage fs (calib_file, cv::FileStorage::READ);
         if (!fs.isOpened ())
@@ -298,6 +340,9 @@ private:
     {
         if (id.empty ())
             return;
+
+        if (!std::filesystem::exists (path))
+            std::filesystem::create_directories (path);
 
         std::string cur_path = path + id;
 

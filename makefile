@@ -1,8 +1,8 @@
 BUILD_DIR := build
 
 CXX := g++
-CXXFLAGS := $(shell pkg-config --cflags opencv4)
-LDFLAGS := $(shell pkg-config --libs opencv4)
+CXXFLAGS := -std=c++17 `pkg-config --cflags opencv4`
+LDFLAGS := `pkg-config --libs opencv4`
 
 cpp_requirements:
 	sudo apt install libopencv-dev
@@ -44,11 +44,5 @@ vis:
 
 clean:
 	rm -rf $(BUILD_DIR)
-	@for dir in data/out*; do \
-		if [ -d "$$dir" ]; then \
-			echo "Cleaning $$dir"; \
-			rm -rf "$$dir"/*; \
-		fi; \
-	done
 
 .PHONY: requirements calibrate test_cam clean

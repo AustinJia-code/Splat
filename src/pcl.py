@@ -1,9 +1,23 @@
+'''
+Build point cloud assuming camera is rotating
+'''
+
 import open3d as o3d
 import numpy as np
 import cv2
 import os
 
+########################################
 STEPS_PER_ROTATION = 120
+extrinsic = np.array ([
+        [1,  0,  0, 0],
+        [0,  1,  0, 0],
+        [0,  0,  1, 0],
+        [0,  0,  0, 1]
+    ], dtype = np.float64)
+folder = "./data/out/room/5-points/"
+out_path = ""   # out path for combined point cloud... not implemented
+########################################
 
 # Load calibration
 yaml_file = "./src/config/stereo_calib.yml"
@@ -31,14 +45,6 @@ s.t. the camera at origin looks at the points how they were imaged... :(
 Points are at positive Z, so we need to transform them to be in front
 
 '''
-extrinsic = np.array ([
-        [1,  0,  0, 0],
-        [0,  1,  0, 0],
-        [0,  0,  1, 0],
-        [0,  0,  0, 1]
-    ], dtype = np.float64)
-
-folder = "./data/out-5-points/"
 pcds = []
 # Add all point clouds
 for ply in os.listdir (folder):
@@ -61,7 +67,7 @@ for ply in os.listdir (folder):
 merged_pcd = o3d.geometry.PointCloud ()
 for pcd in pcds:
     merged_pcd += pcd
-merged_pcd = merged_pcd.voxel_down_sample (voxel_size = 5.0)
+# merged_pcd = merged_pcd.voxel_down_sample (voxel_size = 5.0)
 print (len (merged_pcd.points))
 
 # View

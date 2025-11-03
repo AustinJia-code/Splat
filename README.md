@@ -1,14 +1,5 @@
-Convert stereo camera rotation sweep to Gaussian splat
+# Stereo Room Sweep &rarr; Gaussian Splat
 
-Run: 
-make requirements
-
-make calibrate
-make test_pipeline
-
-make clean
-make wipe
-
-Requirements:
-libopencv-dev
-libpcl-dev
+make cpp_requirements\
+make python_requirements\
+make run

@@ -46,13 +46,29 @@ public:
         {
             std::string filename = entry.path ().filename ().string ();
             std::string id = filename.substr (0, filename.find_last_of ('.'));
-
-            this->load (entry.path ().string (), "0");
-            this->undistort ("0");
-            this->disparity ("0");
-            this->depth ("0");
-            this->points ("0");
+            std::cout << "Parsing file: " << filename << std::endl;
+            this->load (entry.path ().string (), id);
+            this->undistort (id);
+            this->disparity (id);
+            this->depth (id);
+            this->points (id);
         }
+    }
+
+    /**
+     * Camera raw combined
+     */
+    void capture (const std::string& id = "", 
+                  std::string path = "")
+    {
+        if (path.empty ())
+            path = ("../data/in/" + this->scene + "/");
+
+        // Capture
+        this->stereo_cam >> this->raw_frame;
+        
+        // Save
+        this->save (path, id, this->raw_frame);
     }
 
     /**
@@ -72,24 +88,6 @@ public:
 
         // Save
         this->save (out_path, id, this->left_raw, this->right_raw);
-    }
-
-    /**
-     * Camera raw combined -> raw split
-     */
-    void capture (const std::string& id = "", 
-                  std::string path = "")
-    {
-        if (path.empty ())
-            path = ("../data/out/" + this->scene + "/1-cam/");
-
-        // Capture
-        this->stereo_cam >> this->raw_frame;
-        this->img_size = cv::Size (raw_frame.cols / 2, raw_frame.rows);
-        this->split ();
-
-        // Save
-        this->save (path, id, this->left_raw, this->right_raw);
     }
 
     /**

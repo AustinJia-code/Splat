@@ -12,16 +12,10 @@ python_requirements:
 	pip install open3d
 	pip install opencv-python
 
-test:
-	make clean
-	make calibrate
-	make test_cam
-	make vis
-
 run:
 	make clean
 	make calibrate
-	make test_cam
+	make process_scene
 	make vis
 
 $(BUILD_DIR):
@@ -31,16 +25,19 @@ calibrate: $(BUILD_DIR)
 	$(CXX) src/calibrate.cpp -o $(BUILD_DIR)/calibrate $(CXXFLAGS) $(LDFLAGS)
 	cd $(BUILD_DIR) && ./calibrate
 
-test_cam: $(BUILD_DIR)
-	$(CXX) src/test_cam.cpp -o $(BUILD_DIR)/test_cam $(CXXFLAGS) $(LDFLAGS)
-	cd $(BUILD_DIR) && ./test_cam
+process_scene: $(BUILD_DIR)
+	$(CXX) src/process_scene.cpp -o $(BUILD_DIR)/process_scene $(CXXFLAGS) $(LDFLAGS)
+	cd $(BUILD_DIR) && ./process_scene
 
-sweep: $(BUILD_DIR)
-	$(CXX) src/sweep.cpp -o $(BUILD_DIR)/sweep $(CXXFLAGS) $(LDFLAGS)
-	cd $(BUILD_DIR) && ./sweep
+record_scene: $(BUILD_DIR)
+	$(CXX) src/record_scene.cpp -o $(BUILD_DIR)/record_scene $(CXXFLAGS) $(LDFLAGS)
+	cd $(BUILD_DIR) && ./record_scene
 
-vis:
-	python src/pcl.py
+vis_scan:
+	python src/pcl_scan.py
+
+vis_sweep:
+	python src/pcl_sweep.py
 
 clean:
 	rm -rf $(BUILD_DIR)

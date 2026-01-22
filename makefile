@@ -16,7 +16,7 @@ run:
 	make clean
 	make calibrate
 	make process_scene
-	make vis
+	make vis_scan
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)

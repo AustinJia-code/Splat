@@ -14,6 +14,7 @@
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/calib3d.hpp>
+#include <opencv2/ximgproc/disparity_filter.hpp>
 #include <iostream>
 #include <cassert>
 #include <fstream>
@@ -137,38 +138,37 @@ public:
     /**
      * Rectified split -> depth
      */
-    void disparity (const std::string& id = "", 
-                    std::string path = "")
-    {
+    void disparity (const std::string& id = "", std::string path = "") {
         assert (!this->left_rect.empty () && !this->right_rect.empty ());
-        if (path.empty ())
-            path = ("../data/out/" + this->scene + "/3-disparity/");
+        if (path.empty ()) path = ("../data/out/" + this->scene + "/3-disparity/");
 
-        // Convert to grayscale
-        cv::Mat left_gray, right_gray;
-        cv::cvtColor (this->left_rect, left_gray, cv::COLOR_BGR2GRAY);
-        cv::cvtColor (this->right_rect, right_gray, cv::COLOR_BGR2GRAY);
+        int numDisparities = 16 * 10;
+        int blockSize = 5; 
+        
+        cv::Ptr<cv::StereoSGBM> left_matcher = cv::StereoSGBM::create (0, numDisparities, blockSize);
+        left_matcher->setP1 (8 * 3 * blockSize * blockSize);
+        left_matcher->setP2 (32 * 3 * blockSize * blockSize);
+        left_matcher->setMode (cv::StereoSGBM::MODE_SGBM_3WAY);
 
-        // Compute disparity
-        int numDisparities = 16 * 6;
-        int blockSize = 11;
-        cv::Ptr<cv::StereoSGBM> stereo = cv::StereoSGBM::create
-        (
-            0, numDisparities, blockSize,
-            8 * 3 * blockSize * blockSize,
-            32 * 3 * blockSize * blockSize,
-            1, 63, 10, 100, 32,
-            cv::StereoSGBM::MODE_SGBM_3WAY
-        );
+        cv::Ptr<cv::StereoMatcher> right_matcher = cv::ximgproc::createRightMatcher (left_matcher);
 
-        cv::Mat disparity8U;
-        stereo->compute (left_gray, right_gray, this->disparity_map);
+        // Compute both Disparity Maps
+        cv::Mat left_disp, right_disp;
+        left_matcher->compute (this->left_rect, this->right_rect, left_disp);
+        right_matcher->compute (this->right_rect, this->left_rect, right_disp);
 
-        // Visualize and save
+        // Run WLS Filter
+        auto wls_filter = cv::ximgproc::createDisparityWLSFilter (left_matcher);
+        wls_filter->setLambda (8000.0);    // Adjusts smoothness (higher = smoother)
+        wls_filter->setSigmaColor (1.5);   // Sensitivity to edges
+
+        wls_filter->filter (left_disp, this->left_rect, this->disparity_map, right_disp);
+
+        // Vis
         if (!id.empty ())
         {
-            this->disparity_map.convertTo (disparity8U, CV_8U, 255.0 / 
-                                          (numDisparities * 16));
+            cv::Mat disparity8U;
+            cv::ximgproc::getDisparityVis (this->disparity_map, disparity8U, 1.0);
             cv::Mat disparity_color;
             cv::applyColorMap (disparity8U, disparity_color, cv::COLORMAP_JET);
             this->save (path, id, disparity_color);
